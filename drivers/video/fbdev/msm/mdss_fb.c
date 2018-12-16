@@ -64,8 +64,12 @@ extern int LCM_effect[4];
 extern int LCM_effect[3];
 #endif
 
-#ifdef CONFIG_KLAPSE
-#include <linux/klapse.h>
+#if defined(CONFIG_WPONIT_ADJUST_FUN)
+extern uint32_t white_point_num_x;
+extern uint32_t white_point_num_y;
+extern uint32_t white_point_num_r;
+extern uint32_t white_point_num_g;
+extern uint32_t white_point_num_b;
 #endif
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
@@ -2436,7 +2440,6 @@ static int mdss_fb_blank(int blank_mode, struct fb_info *info)
 		return 0;
 	}
 
-	start = ktime_get();
 	ret = mdss_fb_pan_idle(mfd);
 	if (ret) {
 		pr_warn("mdss_fb_pan_idle for fb%d failed. ret=%d\n",
