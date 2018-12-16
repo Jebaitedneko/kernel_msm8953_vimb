@@ -43,6 +43,7 @@
 #include <linux/input/synaptics_dsx.h>
 #include "synaptics_dsx_core.h"
 #include <linux/proc_fs.h>
+#include <linux/hqsysfs.h>
 
 
 #define FW_IHEX_NAME "synaptics/startup_fw_update.bin"
@@ -4066,7 +4067,7 @@ int set_tddi_lockdown_data (unsigned char *lockdown_data, unsigned short leng)
 	int retval = -EINVAL;
 	unsigned long checksum;
 	unsigned char checksum_array[4];
-	unsigned short blk_cnt = 0;
+	unsigned short blk_cnt;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
 	if (fwu->bl_version != BL_V6) {
@@ -4712,6 +4713,7 @@ exit:
 	sprintf (tp_temp_info, "%02x", config_ver[0]);
 	strcat (tp_info_summary, tp_temp_info);
 	strcat (tp_info_summary, "\0");
+	hq_regiser_hw_info (HWID_CTP, tp_info_summary);
 
 	rmi4_data->stay_awake = false;
 

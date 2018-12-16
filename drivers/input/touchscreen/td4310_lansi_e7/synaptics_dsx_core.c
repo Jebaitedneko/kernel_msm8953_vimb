@@ -45,6 +45,7 @@
 #include <synaptics_dsx.h>
 #include "synaptics_dsx_core.h"
 #include <linux/delay.h>
+#include <linux/hqsysfs.h>
 #include <linux/workqueue.h>
 
 #ifdef KERNEL_ABOVE_2_6_38
@@ -136,7 +137,7 @@ bool synaptics_gesture_func_on_lansi = true;
 int synaptics_gesture_switch_lansi (struct input_dev *dev, unsigned int type, unsigned int code, int value)
 {
 
-	unsigned int input = 0;
+	unsigned int input ;
 	if (type == EV_SYN && code == SYN_CONFIG) {
 		if (value == WAKEUP_OFF) {
 			synaptics_gesture_func_on_lansi = false;
@@ -1941,7 +1942,7 @@ exit:
 	return retval;
 }
 
-static int synaptics_rmi4_set_intr_mask (struct synaptics_rmi4_fn *fhandler,
+static void synaptics_rmi4_set_intr_mask (struct synaptics_rmi4_fn *fhandler,
 		struct synaptics_rmi4_fn_desc *fd,
 		unsigned int intr_count)
 {
@@ -1949,12 +1950,6 @@ static int synaptics_rmi4_set_intr_mask (struct synaptics_rmi4_fn *fhandler,
 	unsigned char intr_offset;
 
 	fhandler->intr_reg_num = (intr_count + 7) / 8;
-	if (fhandler->intr_reg_num >= MAX_INTR_REGISTERS) {
-		fhandler->intr_reg_num = 0;
-		fhandler->num_of_data_sources = 0;
-		fhandler->intr_mask = 0;
-		return -EINVAL;
-	}
 	if (fhandler->intr_reg_num != 0)
 		fhandler->intr_reg_num -= 1;
 
@@ -1966,7 +1961,7 @@ static int synaptics_rmi4_set_intr_mask (struct synaptics_rmi4_fn *fhandler,
 			ii++)
 		fhandler->intr_mask |= 1 << ii;
 
-	return 0;
+	return;
 }
 
 static int synaptics_rmi4_f01_init (struct synaptics_rmi4_data *rmi4_data,
@@ -1974,16 +1969,12 @@ static int synaptics_rmi4_f01_init (struct synaptics_rmi4_data *rmi4_data,
 		struct synaptics_rmi4_fn_desc *fd,
 		unsigned int intr_count)
 {
-	int retval;
-
 	fhandler->fn_number = fd->fn_number;
 	fhandler->num_of_data_sources = fd->intr_src_count;
 	fhandler->data = NULL;
 	fhandler->extra = NULL;
 
-	retval = synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
-	if (retval < 0)
-		return retval;
+	synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
 
 	rmi4_data->f01_query_base_addr = fd->query_base_addr;
 	rmi4_data->f01_ctrl_base_addr = fd->ctrl_base_addr;
@@ -2064,9 +2055,7 @@ static int synaptics_rmi4_f11_init (struct synaptics_rmi4_data *rmi4_data,
 		rmi4_data->sensor_max_y = temp;
 	}
 
-	retval = synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
-	if (retval < 0)
-		return retval;
+	synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
 
 	fhandler->data = NULL;
 
@@ -2733,9 +2722,7 @@ static int synaptics_rmi4_f12_init (struct synaptics_rmi4_data *rmi4_data,
 				query_8->data3_is_present;
 	}
 
-	retval = synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
-	if (retval < 0)
-		return retval;
+	synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
 
 	/* Allocate memory for finger data storage space */
 	fhandler->data_size = num_of_fingers * size_of_2d_data;
@@ -2925,9 +2912,7 @@ static int synaptics_rmi4_f1a_init (struct synaptics_rmi4_data *rmi4_data,
 	fhandler->fn_number = fd->fn_number;
 	fhandler->num_of_data_sources = fd->intr_src_count;
 
-	retval = synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
-	if (retval < 0)
-		return retval;
+	synaptics_rmi4_set_intr_mask (fhandler, fd, intr_count);
 
 	retval = synaptics_rmi4_f1a_alloc_mem (rmi4_data, fhandler);
 	if (retval < 0)
@@ -3250,10 +3235,8 @@ rescan_pdt:
 				fhandler->num_of_data_sources =
 						rmi_fd.intr_src_count;
 
-				retval = synaptics_rmi4_set_intr_mask (fhandler, &rmi_fd,
+				synaptics_rmi4_set_intr_mask (fhandler, &rmi_fd,
 						intr_count);
-				if (retval < 0)
-					return retval;
 				break;
 #endif
 			case SYNAPTICS_RMI4_F35:
@@ -3299,8 +3282,6 @@ flash_prog_mode:
 	dev_dbg (rmi4_data->pdev->dev.parent,
 			"%s: Number of interrupt registers = %d\n",
 			__func__, rmi4_data->num_of_intr_regs);
-	if (rmi4_data->num_of_intr_regs >= MAX_INTR_REGISTERS)
-		return -EINVAL;
 
 	f01_query = kmalloc (F01_STD_QUERY_LEN, GFP_KERNEL);
 	if (!f01_query) {
@@ -3388,7 +3369,7 @@ static int synaptics_rmi4_gpio_setup (int gpio, bool config, int dir, int state)
 	unsigned char buf[16];
 
 	if (config) {
-		snprintf (buf, ARRAY_SIZE(buf), "dsx_gpio_%u\n", gpio);
+		snprintf (buf, PAGE_SIZE, "dsx_gpio_%u\n", gpio);
 
 		retval = gpio_request (gpio, buf);
 		if (retval) {
