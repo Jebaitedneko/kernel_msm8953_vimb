@@ -171,7 +171,6 @@ static int read_eeprom_memory(struct msm_eeprom_ctrl_t *e_ctrl,
 	}
 
 	CDBG("%s %d addr [0x0000] = %x, [0x0001] = %x\n", __func__, __LINE__, sensor_id[0], sensor_id[1]);
-
 	for (j = 0; j < block->num_map; j++) {
 		if (emap[j].saddr.addr) {
 			eb_info->i2c_slaveaddr = emap[j].saddr.addr;

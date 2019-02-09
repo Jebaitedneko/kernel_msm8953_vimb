@@ -28,15 +28,6 @@ DEFINE_MSM_MUTEX(msm_flash_mutex);
 static struct v4l2_file_operations msm_flash_v4l2_subdev_fops;
 static struct led_trigger *torch_trigger;
 
-static const struct of_device_id msm_flash_i2c_dt_match[] = {
-	{.compatible = "qcom,camera-flash"},
-	{}
-};
-
-static const struct i2c_device_id msm_flash_i2c_id[] = {
-	{"qcom,camera-flash", (kernel_ulong_t)NULL},
-	{ }
-};
 #ifdef CONFIG_FLASHLIGHT_VINCE_O
 static struct msm_flash_ctrl_t *flashlight_ctrl;
 static unsigned char flashlight_brightness_value;
@@ -154,7 +145,7 @@ static struct led_classdev msm_pmic_flashlight_led = {
 int32_t msm_flashlight_create_classdev(struct platform_device *pdev,
 		void *data)
 {
-	int32_t i = 0, rc = 0;
+	int32_t i, rc = 0;
 	struct msm_flash_ctrl_t *fctrl =
 		(struct msm_flash_ctrl_t *)data;
 
@@ -752,6 +743,9 @@ static int32_t msm_flash_config(struct msm_flash_ctrl_t *flash_ctrl,
 		flashlight_brightness_value = 0;
 #endif
 		break;
+#ifdef CONFIG_FLASHLIGHT_VINCE_O
+		flashlight_brightness_value = 0;
+#endif
 	case CFG_FLASH_RELEASE:
 		if (flash_ctrl->flash_state != MSM_CAMERA_FLASH_RELEASE) {
 			rc = flash_ctrl->func_tbl->camera_flash_release(
@@ -1358,6 +1352,10 @@ static int32_t msm_flash_platform_probe(struct platform_device *pdev)
 
 	if (flash_ctrl->flash_driver_type == FLASH_DRIVER_PMIC)
 		rc = msm_torch_create_classdev(pdev, flash_ctrl);
+<<<<<<< HEAD
+=======
+
+>>>>>>> f4ee897a875c... drivers: media: camera_v2: Import Xiaomi changes
 #ifdef CONFIG_FLASHLIGHT_VINCE_O
 	msm_flashlight_create_classdev(pdev, flash_ctrl);
 #endif
