@@ -1,6 +1,6 @@
 /*
 * Copyright (C) 2014  Peel Technologies Inc
-* Copyright (C) 2018 XiaoMi, Inc.
+ * Copyright (C) 2018 XiaoMi, Inc.
 */
 
 #include <linux/init.h>
@@ -42,6 +42,8 @@
 
 #define TRACE printk("@@@@ %s, %d\n", __func__, __LINE__);
 
+/*uncoment below defintion to use map
+for write*/
 #define USES_MMAP
 struct peelir_data {
 	dev_t			devt;
@@ -52,14 +54,17 @@ struct peelir_data {
 	u8			*buffer;
 };
 
+/*npages gets its value from the makefile
+avoid changing it here*/
+/*static unsigned int npages = CONFIG_NPAGES; */
 static unsigned int npages = 150;
-static unsigned bufsiz;
+static unsigned bufsiz;  /* Default buffer size */
 u32 is_gpio_used;
 #ifndef CONFIG_OF
 static int mode = 0, bpw = 32, spi_clk_freq = 960000;
 #endif
 static int lr_en, in_use , rcount;
-static int prev_tx_status;
+static int prev_tx_status;  /* Status of previous transaction */
 static u32 field;
 static const char  *reg_id;
 static struct regulator *ir_reg;
@@ -77,7 +82,8 @@ static int ir_regulator_set(bool enable)
 	int rc = 0;
 #ifdef CONFIG_OF
 	if (ir_reg) {
-		if (enable) {
+		if (enable)
+		{
 			rc = regulator_enable(ir_reg);
 		}
 		else
@@ -109,7 +115,7 @@ static int peelir_read_message(struct peelir_data *peelir,
 {
 	u8			*buf;
 
-	memset(peelir->buffer, 0, bufsiz);
+	memset(peelir->buffer, 0, bufsiz);	/*Receive Buffer*/
 
 	buf = peelir->buffer; TRACE
 	if (u_xfers->len > bufsiz) {
@@ -117,12 +123,14 @@ static int peelir_read_message(struct peelir_data *peelir,
 		return -EMSGSIZE;
 	}
 
+	/* Receiving IR input */
 
 	pr_info("\n Waiting for IR data.... \n");
 	pr_info("\n Press the Key\n");
 
 	peelir_read(peelir, bufsiz); TRACE
 
+	/* copy any rx data to user space */
 	if (u_xfers->rx_buf) {
 		pr_info("\n%s:Copying data to user space\n", __func__);
 		if (__copy_to_user((u8 __user *)
@@ -185,8 +193,10 @@ peelir_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	mutex_lock(&peelir->buf_lock);
 
 	switch (cmd) {
+	/* read ioctls */
 
 	case SPI_IOC_WR_MSG:
+		/* copy into scratch area */
 		ioc = kmalloc(sizeof(struct spi_ioc_transfer), GFP_KERNEL);
 		if (!ioc) {
 			retval = -ENOMEM;
@@ -199,7 +209,8 @@ peelir_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		rc = ir_regulator_set(1);
-		if (!rc) {
+		if (!rc)
+		{
 			retval = peelir_write_message(peelir, ioc);
 		}
 		if (retval > 0)
@@ -214,7 +225,8 @@ peelir_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case SPI_IOC_RD_MSG:
 		printk("%s: READ Invoked\n", __func__);
 		if (is_gpio_used)
-			gpio_set_value(lr_en, 1);
+			gpio_set_value(lr_en, 1);	/* LR Enable high for Rx*/
+		/* copy into scratch area */
 		ioc = kmalloc(sizeof(struct spi_ioc_transfer), GFP_KERNEL);
 		if (!ioc) {
 			pr_err("%s: No memory for ioc. Exiting\n", __func__);
@@ -231,12 +243,13 @@ peelir_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		printk("%s: Starting hw read\n", __func__);
 		rc = ir_regulator_set(1);
-		if (!rc) {
+		if (!rc)
+		{
 			retval = peelir_read_message(peelir, ioc);
 		}
 		ir_regulator_set(0);
 		if (is_gpio_used)
-			gpio_set_value(lr_en, 0);
+			gpio_set_value(lr_en, 0);	/* LR Enable default state*/
 		break;
 	case SPI_IOC_RD_IDS:
 		id = kmalloc(sizeof(struct strIds), GFP_KERNEL);
@@ -310,6 +323,8 @@ int peelir_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	printk(KERN_INFO "mmap is invoked\n");
 	peelir = (struct peelir_data *)filp->private_data; TRACE
+	/* check length - do not allow larger mappings than the number of
+	pages allocated */
 	if (length > bufsiz)
 		return -EIO;
 
@@ -322,6 +337,9 @@ int peelir_mmap(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 #endif
+/*
+ * sysfs layer
+ */
 
 static ssize_t ir_tx_status(struct device *dev,
 			struct device_attribute *attr, char *buf)
@@ -355,6 +373,7 @@ static struct attribute_group attr_group = {
 	.attrs = peel_attributes,
 };
 
+/*-------------------------------------------------------------------------*/
 static const struct file_operations peel_dev_fops = {
 	.owner			=	THIS_MODULE,
 	.open			=	peelir_open,
@@ -383,10 +402,12 @@ static int peelir_probe(struct spi_device *spi)
 	#ifdef CONFIG_OF
 	u32 bpw, mode; TRACE
 	#endif
+	/* Allocate driver data */
 	peelir = kzalloc(sizeof(*peelir), GFP_KERNEL);
 	if (!peelir)
 		return -ENOMEM;
 
+	/* Initialize the driver data */
 	peelir->spi = spi;
 	spin_lock_init(&peelir->spi_lock);
 	mutex_init(&peelir->buf_lock);
@@ -420,6 +441,7 @@ static int peelir_probe(struct spi_device *spi)
 	printk("%s:lr_en = %d\n", __func__, lr_en);
 	if (is_gpio_used) {
 		if (gpio_is_valid(lr_en)) {
+			/* configure LR enable gpio */
 			status = gpio_request(lr_en, "lr_enable");
 			if (status) {
 				printk("unable to request gpio [%d]: %d\n",
@@ -435,6 +457,7 @@ static int peelir_probe(struct spi_device *spi)
 			printk("gpio %d is not valid \n", lr_en);
 	}
 	misc_register(&peel_dev_drv);
+	/* sysfs entry */
 	status = sysfs_create_group(&spi->dev.kobj, &attr_group);
 	if (status)
 		dev_dbg(&spi->dev, " Error creating sysfs entry ");
@@ -448,11 +471,15 @@ static int peelir_remove(struct spi_device *spi)
 
 	sysfs_remove_group(&spi->dev.kobj, &attr_group); TRACE
 
+	/* make sure ops on existing fds can abort cleanly */
 	spin_lock_irq(&peelir->spi_lock);
 	peelir->spi = NULL;
 	spi_set_drvdata(spi, NULL);
 	spin_unlock_irq(&peelir->spi_lock);
 
+	/* prevent opening a new instance of the device
+	   during the removal of the device
+	 */
 	if (peelir->users == 0) {
 		kfree(peelir);
 		kfree(p_buf);
@@ -479,7 +506,14 @@ static struct spi_driver peelir_spi_driver = {
 	.probe =	peelir_probe,
 	.remove =	peelir_remove,
 
+	/* NOTE:  suspend/resume methods are not necessary here.
+	 * We don't do anything except pass the requests to/from
+	 * the underlying controller.  The refrigerator handles
+	 * most issues; the controller driver handles the rest.
+	 */
 };
+
+/*-------------------------------------------------------------------------*/
 
 static int __init peelir_init(void)
 {
