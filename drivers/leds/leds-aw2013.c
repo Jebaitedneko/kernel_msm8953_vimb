@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2018 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -198,57 +199,6 @@ reg_vdd_put:
 	regulator_put(led->vdd);
 	return rc;
 }
-#if 0
-static void aw2013_brightness_work(struct work_struct *work)
-{
-	struct aw2013_led *led = container_of(work, struct aw2013_led,
-					brightness_work);
-	u8 val;
-
-	mutex_lock(&led->pdata->led->lock);
-
-	/* enable regulators if they are disabled */
-	if (!led->pdata->led->poweron) {
-		if (aw2013_power_on(led->pdata->led, true)) {
-			dev_err(&led->pdata->led->client->dev, "power on failed");
-			mutex_unlock(&led->pdata->led->lock);
-			return;
-		}
-	}
-
-	if (led->cdev.brightness > 0) {
-		if (led->cdev.brightness > led->cdev.max_brightness)
-			led->cdev.brightness = led->cdev.max_brightness;
-		aw2013_write(led, AW_REG_GLOBAL_CONTROL,
-			AW_LED_MOUDLE_ENABLE_MASK);
-		aw2013_write(led, AW_REG_LED_CONFIG_BASE + led->id,
-			led->pdata->max_current);
-		aw2013_write(led, AW_REG_LED_BRIGHTNESS_BASE + led->id,
-			led->cdev.brightness);
-		aw2013_read(led, AW_REG_LED_ENABLE, &val);
-		aw2013_write(led, AW_REG_LED_ENABLE, val | (1 << led->id));
-	} else {
-		aw2013_read(led, AW_REG_LED_ENABLE, &val);
-		aw2013_write(led, AW_REG_LED_ENABLE, val & (~(1 << led->id)));
-	}
-
-	aw2013_read(led, AW_REG_LED_ENABLE, &val);
-	/*
-	 * If value in AW_REG_LED_ENABLE is 0, it means the RGB leds are
-	 * all off. So we need to power it off.
-	 */
-	if (val == 0) {
-		if (aw2013_power_on(led->pdata->led, false)) {
-			dev_err(&led->pdata->led->client->dev,
-				"power off failed");
-			mutex_unlock(&led->pdata->led->lock);
-			return;
-		}
-	}
-
-	mutex_unlock(&led->pdata->led->lock);
-}
-#else
 static void aw2013_brightness_set(struct aw2013_led *led)
 {
 	u8 val = 0;
@@ -288,7 +238,6 @@ static void aw2013_brightness_set(struct aw2013_led *led)
 	}
 }
 
-#endif
 static void aw2013_led_blink_set(struct aw2013_led *led, unsigned long blinking)
 {
 	u8 val = 0;
@@ -442,9 +391,10 @@ static int aw_2013_check_chipid(struct aw2013_led *led)
 {
 	u8 val = 0;
 	if (aw2013_power_on(led->pdata->led, true)) {
-		dev_err(&led->pdata->led->client->dev, "power off failed");
-		return -1;
-	}
+						dev_err(&led->pdata->led->client->dev,
+							   "power off failed");
+						return -1;
+		    }
 	aw2013_write(led, AW_REG_RESET, AW_LED_RESET_MASK);
 
 	udelay(2000);

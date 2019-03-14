@@ -452,7 +452,7 @@ static ssize_t aw2023_reg_show(struct device *dev,
 	struct aw2023_led *led =
 			container_of(led_cdev, struct aw2023_led, cdev);
 
-	unsigned char i, reg_val;
+	unsigned char i, reg_val = 0;
 	ssize_t len = 0;
 
 	for (i = 0; i<AW2023_REG_MAX; i++) {
